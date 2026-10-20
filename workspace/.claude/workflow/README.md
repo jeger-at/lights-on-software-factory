@@ -6,7 +6,8 @@ This directory holds two tools that run inside Claude Code:
   whether a Bash command may run;
 - the **workflow generator** (`bin/validate-plan.js`, `bin/generate-workflow.js`,
   `bin/record-progress.js`, `bin/show-progress.js`, `bin/measure-run.js`,
-  `src/generator/`), which this document describes.
+  `src/generator/`), which this document describes, with an optional file
+  boundary check (`bin/verify-boundary.js`, `src/boundary/`).
 
 A plan states its execution structure as data, in a sidecar file beside it. The
 generator reads that file and reports every structural fault of the plan, so a
@@ -75,6 +76,11 @@ no argument prints what it needs and exits non-zero.
   tool and the reply after it, so the queue and the scheduling of a request are
   inside it. It is consistent between the agents of one run, which makes two
   agents comparable, but it is not the cost of a model.
+- `node .claude/workflow/bin/verify-boundary.js` (the `boundary` goal)
+  compares the tree with the last commit and reports each change that the file
+  lists of the plan do not allow. It exits 0 with one line where every change is
+  allowed, and exits 1 with one line for each change that is not. No gate runs
+  it unless the project asks; see [The file boundary](#the-file-boundary).
 
 ## The transient directory
 
@@ -340,3 +346,28 @@ When a plan needs something the two fields cannot say, do this, in this order:
 - `src/generator/run-timing-lines.js` — the report of what a run cost
 - `tests/generator/` — one test file for each module, and one integration test
   for each entry
+
+## The file boundary
+
+The three file lists of a step name the files its worker is sent to write. A
+worker can write others: the regulator reads a command and not what it writes,
+so `node -e`, `sed -i`, `tee`, `cp` and `mv` all run, and `Edit` and `Write`
+never reach it. Often that is intended: a hook that limits the complexity of a
+file makes a worker split it into new files that no list names.
+
+Where a project wants the lists held, the `boundary` goal proves them from the
+result. Add it to the prerequisites of `workflow-final-gate`:
+
+```make
+workflow-final-gate: lint test test-tooling boundary
+```
+
+`bin/verify-boundary.js` reads `git status` against the last commit. Each
+changed path must be named by a file list of a plan with a generated run (a
+`plans/<plan>.groups.json`), or be a file of that plan itself. A lockfile, a
+file under `.claude/` and a path outside the project are a fault whatever a step
+states.
+
+**Start a run from a committed tree.** The check cannot tell a change a person
+made before the run from a change an agent made during it, so it reports both.
+**A file git ignores is not seen.**

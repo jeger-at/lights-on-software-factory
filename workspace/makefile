@@ -1,6 +1,6 @@
 export PATH := $(CURDIR)/node_modules/.bin:$(PATH)
 
-.PHONY: help init test test-changed test-tooling lint workflow-serial-gate workflow-final-gate
+.PHONY: help init test test-changed test-tooling lint boundary workflow-serial-gate workflow-final-gate
 
 help: ## Show the targets and what each one does
 	@awk 'BEGIN { FS = ":.*## " } /^[a-zA-Z_-]+:.*## / { printf "  %-22s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -24,6 +24,9 @@ test-tooling: ## Run the workflow tooling tests (.claude/workflow/)
 
 lint: ## Lint the whole project
 	eslint .
+
+boundary: ## Check that every change since the last commit is in the file lists of the plan being run; add it to workflow-final-gate to use it
+	node .claude/workflow/bin/verify-boundary.js
 
 workflow-serial-gate: lint test-changed ## Run lint and test-changed; gate agents run it between the groups of a flow
 	@echo "=== The serial gate is green ==="
